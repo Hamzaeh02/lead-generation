@@ -54,9 +54,25 @@ _BUILDERS: dict[tuple[str, ProviderCategory], tuple[str | None, type]] = {
 }
 
 
+# Credential env-var per provider, kept independent of _BUILDERS so that
+# "not configured" error messages stay accurate even for providers whose
+# builder entry above is commented out during the current trim.
+_ENV_VARS: dict[str, str] = {
+    "apollo": "APOLLO_API_KEY",
+    "people_data_labs": "PDL_API_KEY",
+    "hunter": "HUNTER_API_KEY",
+    "serpapi": "SERPAPI_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "smtp": "SMTP_HOST",
+}
+
+
 def required_env_var(provider_name: str, category: ProviderCategory) -> str | None:
     entry = _BUILDERS.get((provider_name, category))
-    return entry[0] if entry else None
+    if entry:
+        return entry[0]
+    return _ENV_VARS.get(provider_name)
 
 
 def build_provider(
