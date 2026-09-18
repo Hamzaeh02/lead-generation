@@ -1,0 +1,58 @@
+# Production overlay (Phase 15). Layer on top of the base compose file
+# rather than duplicating it:
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --build
+#
+# Requires Docker Compose v2.24+ for the `!reset` merge tag used below to
+# clear inherited `ports` entries (https://docs.docker.com/compose/multiple-compose-files/merge/#reset-value).
+# On an older Compose version this fails to parse rather than silently
+# leaving ports exposed — check `docker compose version` if this errors.
+#
+# What this changes vs. the base file:
+#   - Only nginx publishes a host port. Postgres/Redis/backend/frontend
+#     are still reachable from each other over the compose network (Docker
+#     service-name DNS doesn't depend on host port publishing) but are no
+#     longer exposed on the host at all — closes off direct access to the
+#     database and the raw backend/frontend ports.
+#   - restart: unless-stopped on every long-running service, so a host
+#     reboot or a crashed container comes back without manual intervention.
+#   - ENVIRONMENT=production (disables /docs, /redoc, and enables the HSTS
+#     response header — see app/middleware/security_headers.py).
+#
+# What this deliberately does NOT do:
+#   - TLS termination. Terminate TLS in front of this stack (a managed
+#     load balancer, Caddy, or Certbot + nginx) — no certificate is
+#     fabricated here. infra/nginx.conf listens on plain HTTP 80 and
+#     expects a real TLS-terminating layer in front of it in production.
+#   - Secrets management. `.env` is still just a file; a real deployment
+#     should pull SECRET_KEY/DB credentials/provider API keys from a
+#     secrets manager (see README §15) rather than a checked-out .env.
+
+services:
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+
+  backend:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+    ports: !reset []
+
+  celery_worker:
+    restart: unless-stopped
+
+  celery_beat:
+    restart: unless-stopped
+
+  frontend:
+    restart: unless-stopped
+    ports: !reset []
+
+  nginx:
+    restart: unless-stopped
